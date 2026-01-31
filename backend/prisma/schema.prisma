@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ScanStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum Role {
+  ADMIN
+  ANALYST
+  VIEWER
+}
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(ANALYST)
+  createdAt DateTime @default(now())
+}
+
+model Scan {
+  id          String      @id @default(uuid())
+  target      String
+  portRange   String?
+  status      ScanStatus  @default(PENDING)
+  result      Json?
+  logs        String?
+  userId      String?     
+  createdAt   DateTime    @default(now())
+  finishedAt  DateTime?
+}

@@ -1,0 +1,29 @@
+services:
+  # Banco de Dados Principal
+  postgres:
+    image: postgres:15-alpine
+    container_name: scanner_postgres
+    # restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: securepassword123 # Em prod, use .env!
+      POSTGRES_DB: scanner_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Fila para processamento assíncrono (BullMQ)
+  redis:
+    image: redis:7-alpine
+    container_name: scanner_redis
+    # restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes # Persistência básica
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:
