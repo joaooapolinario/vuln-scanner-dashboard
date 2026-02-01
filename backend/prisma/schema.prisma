@@ -28,14 +28,22 @@ model User {
   createdAt DateTime @default(now())
 }
 
+enum ScanType {
+  NETWORK // Nmap
+  WEB     // Nikto
+}
+
 model Scan {
   id          String      @id @default(uuid())
   target      String
   portRange   String?
+  // 2. Adicione este campo
+  type        ScanType    @default(NETWORK) 
+  
   status      ScanStatus  @default(PENDING)
   result      Json?
   logs        String?
-  userId      String?     
+  userId      String?
   createdAt   DateTime    @default(now())
   finishedAt  DateTime?
 }

@@ -4,17 +4,16 @@
 ![Stack](https://img.shields.io/badge/Stack-Fullstack-blue)
 ![Security](https://img.shields.io/badge/Focus-Cybersecurity-red)
 
-> Uma plataforma Fullstack para varredura de infraestrutura, orquestração de ferramentas de segurança (Nmap) e visualização de dados de inteligência de ameaças.
-
+> Uma plataforma Fullstack para varredura de infraestrutura, testes de segurança web (DAST), orquestração de ferramentas (Nmap/Nikto) e visualização de dados de inteligência de ameaças.
 
 ## 📋 Sobre o Projeto
 
-O **VulnScanner** é uma solução de gerenciamento de vulnerabilidades que permite aos analistas de segurança executar varreduras de rede de forma assíncrona e visualizar os resultados em um dashboard centralizado.
+O **VulnScanner** é uma solução de gerenciamento de vulnerabilidades que permite aos analistas de segurança executar varreduras de rede e auditorias web de forma assíncrona, visualizando os resultados em um dashboard centralizado.
 
 Diferente de scripts simples de automação, este projeto foca em **Arquitetura de Software Robusta**, resolvendo problemas reais como:
 - **Bloqueio de Event Loop:** Uso de filas (Redis) para processar scans pesados sem travar a API.
-- **Concorrência:** Gerenciamento de múltiplos processos de análise simultâneos.
-- **Tratamento de Dados:** Parsing complexo de outputs XML (Nmap) para dados relacionais estruturados.
+- **Polimorfismo:** Suporte a múltiplos motores de scan (Infraestrutura e Web) no mesmo pipeline.
+- **Tratamento de Dados:** Parsing complexo de outputs XML (Nmap/Nikto) para dados relacionais estruturados.
 - **IAM & Segurança:** Autenticação JWT e proteção de rotas críticas.
 
 ## 🚀 Tecnologias Utilizadas
@@ -29,7 +28,7 @@ Diferente de scripts simples de automação, este projeto foca em **Arquitetura 
 ### Frontend (Dashboard)
 - **Next.js 14+ (App Router)**: Renderização e roteamento moderno.
 - **Tailwind CSS & Shadcn/UI**: Design system responsivo e acessível.
-- **Recharts**: Visualização de dados estatísticos (Top Vulnerabilities).
+- **Recharts**: Visualização de dados estatísticos.
 - **Context API**: Gerenciamento de estado de autenticação.
 
 ### Infraestrutura & Tools
@@ -37,12 +36,13 @@ Diferente de scripts simples de automação, este projeto foca em **Arquitetura 
 - **PostgreSQL**: Persistência de dados relacionais e logs de auditoria.
 - **Redis**: Backend para filas de mensagens.
 - **Nmap**: Engine de varredura de rede (Network Mapper).
+- **Nikto**: Engine de varredura de vulnerabilidades Web.
 
 ---
 
 ## 🏗️ Arquitetura do Sistema
 
-O sistema segue o padrão de **Producer-Consumer** para garantir alta disponibilidade da API.
+O sistema segue o padrão de **Producer-Consumer** para garantir alta disponibilidade da API, com um worker inteligente que decide qual ferramenta utilizar.
 
 ```mermaid
 graph TD
@@ -53,8 +53,11 @@ graph TD
     
     subgraph Worker Service
         Redis -->|Consume Job| Processor[Scan Processor]
-        Processor -->|Spawn| Nmap[Nmap CLI]
+        Processor -->|Decision| Type{Scan Type?}
+        Type -->|NETWORK| Nmap[Nmap CLI]
+        Type -->|WEB| Nikto[Nikto CLI]
         Nmap -->|XML Stream| Parser[XML Parser]
+        Nikto -->|XML Stream| Parser
         Parser -->|Persist| DB[(PostgreSQL)]
     end
 ```
@@ -63,11 +66,11 @@ graph TD
 
 - [x] Dashboard em Tempo Real: Visualização de status de scans (Pending, Processing, Completed).
 
-- [x] Gráficos de Inteligência: Métricas de portas mais expostas na infraestrutura.
+- [x] Múltiplos Motores de Scan: Suporte para Infraestrutura (Nmap) e Aplicações Web (Nikto).
 
-- [x] Motor de Scan Assíncrono: Execução do Nmap em background.
+- [x] Gráficos de Inteligência: Métricas de portas mais expostas e contagem de vulnerabilidades.
 
-- [x] Relatórios Detalhados: Visualização rica (Modal) com serviços, versões e SO detectados.
+- [x] Relatórios Híbridos: Visualização adaptativa (Tabelas para Rede / Feed de Vulnerabilidades para Web).
 
 - [x] Histórico de Auditoria: Registro de quem solicitou cada análise.
 
@@ -77,11 +80,17 @@ graph TD
 
 - Docker & Docker Compose
 
-- Nmap  instalado na máquina host (necessário para o worker funcionar).
+- Ferramentas de Segurança instaladas na máquina host (necessário para o worker funcionar):
 
-    - Linux: ```sudo apt install nmap```
+  Linux:
+    ```bash
+    sudo apt update
+    sudo apt install nmap nikto -y
+    ```
 
-    - Windows: Baixar instalador oficial.
+  Windows:
+    - Baixar instalador oficial do Nmap.
+    - Baixar Perl e Nikto (ou usar via WSL2 - Recomendado).
 
 ### 1. Infraestrutura (Banco e Fila)
 Na raiz do projeto, suba os containers:

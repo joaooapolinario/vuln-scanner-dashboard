@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { ScanType } from '@prisma/client';
 
 @Injectable()
 export class ScansService {
@@ -63,11 +64,12 @@ export class ScansService {
     };
   }
 
-  async create(target: string, userId?: string) {
+  async create(target: string, type: ScanType, userId?: string) {
     // 1. Cria no banco vinculando ao usuário
     const scan = await this.prisma.scan.create({
       data: {
         target,
+        type,
         status: 'PENDING',
         userId: userId,
       },
@@ -77,6 +79,7 @@ export class ScansService {
     await this.scanQueue.add('perform-nmap-scan', {
       scanId: scan.id,
       target: scan.target,
+      type: scan.type
     });
 
     return scan;

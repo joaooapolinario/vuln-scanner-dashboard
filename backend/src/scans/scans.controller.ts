@@ -14,10 +14,14 @@ export class ScansController {
 
   @UseGuards(AuthGuard)
   @Post()
-  async createScan(@Body('target') target: string, @Request() req) {
+  async createScan(
+    @Body('target') target: string,
+    @Body('type') type: 'NETWORK' | 'WEB', 
+    @Request() req
+  ) {
     const userId = req.user.sub; 
-    
-    return this.scansService.create(target, userId);
+    const scanType = type || 'NETWORK';
+    return this.scansService.create(target, scanType, userId);
   }
 
   @Get()

@@ -4,6 +4,8 @@ import { Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { spawn } from 'child_process';
 import { parseStringPromise } from 'xml2js';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Processor('scans')
 export class ScansProcessor extends WorkerHost {
@@ -13,97 +15,142 @@ export class ScansProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<{ scanId: string; target: string }>) {
-    const { scanId, target } = job.data;
-    this.logger.log(`[Job ${job.id}] Iniciando Nmap contra: ${target}`);
+  async process(job: Job<{ scanId: string; target: string; type: string }>) {
+    const { scanId, target, type } = job.data;
+    this.logger.log(`[Job ${job.id}] Iniciando scan ${type} contra: ${target}`);
 
-    // 1. Validação de Segurança Básica (Sanitization)
-    // Permite apenas letras, números, pontos, traços e underscores.
-    const isSafeTarget = /^[a-zA-Z0-9.-]+$/.test(target);
+    // Validação Básica (Sanitization)
+    // Para WEB, permitimos : e / (ex: http://alvo.com)
+    const isSafeTarget = /^[a-zA-Z0-9.:\/-]+$/.test(target);
     
     if (!isSafeTarget) {
-      const errorMsg = `Alvo suspeito rejeitado: ${target}`;
-      this.logger.warn(errorMsg);
-      await this.prisma.scan.update({
-        where: { id: scanId },
-        data: { status: 'FAILED', logs: errorMsg, finishedAt: new Date() },
-      });
+      await this.failScan(scanId, `Alvo suspeito rejeitado: ${target}`);
       return;
     }
 
-    // 2. Atualiza Status
     await this.prisma.scan.update({
       where: { id: scanId },
       data: { status: 'PROCESSING' },
     });
 
     try {
-      const result = await this.runNmap(target);
+      let result;
 
-      // 3. Sucesso: Salva o JSON convertido
+      if (type === 'WEB') {
+        result = await this.runNikto(target, scanId);
+      } else {
+        result = await this.runNmap(target);
+      }
+      // ----------------------------
+
       await this.prisma.scan.update({
         where: { id: scanId },
         data: {
           status: 'COMPLETED',
-          result: result as any, // O Prisma aceita o objeto JSON direto
+          result: result as any,
           finishedAt: new Date(),
         },
       });
-      this.logger.log(`[Job ${job.id}] Scan finalizado com sucesso.`);
+      this.logger.log(`[Job ${job.id}] Scan finalizado.`);
 
     } catch (error) {
-      this.logger.error(`[Job ${job.id}] Falha no scan: ${error.message}`);
-      await this.prisma.scan.update({
-        where: { id: scanId },
-        data: {
-          status: 'FAILED',
-          logs: error.message,
-          finishedAt: new Date(),
-        },
-      });
+      this.logger.error(`[Job ${job.id}] Erro: ${error.message}`);
+      await this.failScan(scanId, error.message);
     }
   }
 
-  // Método privado para encapsular a complexidade do child_process
+  private async failScan(id: string, log: string) {
+    await this.prisma.scan.update({
+      where: { id },
+      data: { status: 'FAILED', logs: log, finishedAt: new Date() },
+    });
+  }
+
+  // --- ENGINE NMAP ---
   private runNmap(target: string): Promise<any> {
     return new Promise((resolve, reject) => {
-      // Flags utilizadas:
-      // -sV: Detecção de versão de serviços
-      // -T4: Timing agressivo (mais rápido)
-      // -oX -: Output em XML para o stdout (o traço significa stdout)
-      // --no-stylesheet: Reduz lixo no XML
       const nmap = spawn('nmap', ['-sV', '-T4', '-oX', '-', '--no-stylesheet', target]);
-
-      let stdoutData = '';
-      let stderrData = '';
-
-      // Coleta dados do fluxo de saída
-      nmap.stdout.on('data', (data) => {
-        stdoutData += data.toString();
-      });
-
-      // Coleta erros (nota: Nmap imprime status no stderr as vezes, nem sempre é erro fatal)
-      nmap.stderr.on('data', (data) => {
-        stderrData += data.toString();
-      });
-
+      let stdout = '';
+      let stderr = '';
+      nmap.stdout.on('data', (d) => stdout += d.toString());
+      nmap.stderr.on('data', (d) => stderr += d.toString());
       nmap.on('close', async (code) => {
-        if (code !== 0) {
-          return reject(new Error(`Nmap exited with code ${code}. Stderr: ${stderrData}`));
-        }
-
-        try {
-          // Converte o XML do Nmap para objeto JavaScript (JSON)
-          const result = await parseStringPromise(stdoutData);
-          resolve(result);
-        } catch (parseError) {
-          reject(new Error(`Erro ao parsear XML do Nmap: ${parseError.message}`));
-        }
-      });
-
-      nmap.on('error', (err) => {
-        reject(new Error(`Falha ao iniciar processo Nmap: ${err.message}`));
+        if (code !== 0) return reject(new Error(`Nmap error: ${stderr}`));
+        try { resolve(await parseStringPromise(stdout)); } 
+        catch (e) { reject(new Error(`XML Parse error: ${e.message}`)); }
       });
     });
   }
+
+  // --- ENGINE NIKTO ---
+  private runNikto(target: string, scanId: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      // MUDANÇA: Extensão .xml
+      const tempFile = path.join('/tmp', `nikto_${scanId}.xml`);
+      
+      // MUDANÇA: Usamos -Format xml (universalmente suportado)
+      // Removemos o -h e usamos apenas o target direto se preferir, ou mantemos -h
+      const nikto = spawn('nikto', ['-h', target, '-o', tempFile, '-Format', 'xml', '-maxtime', '180s', '-Tuning', '123b']);
+
+      let stderrLog = '';
+      nikto.stderr.on('data', (d) => stderrLog += d.toString());
+
+      nikto.on('error', (err) => {
+        this.logger.error(`Falha CRÍTICA ao iniciar Nikto: ${err.message}`);
+        reject(new Error(`O comando 'nikto' não foi encontrado.`));
+      });
+
+      nikto.on('close', async (code) => {
+        if (!fs.existsSync(tempFile)) {
+           // Se falhar e não gerar arquivo, rejeita
+           return reject(new Error(`Nikto falhou. Erro: ${stderrLog}`));
+        }
+
+        try {
+          const fileContent = fs.readFileSync(tempFile, 'utf8');
+          
+          // 1. Converte XML para Objeto JS Bruto
+          const xmlRaw = await parseStringPromise(fileContent);
+          
+          // Limpa arquivo
+          fs.unlinkSync(tempFile);
+
+          // 2. Mapeamento (Adapter): Transforma o XML feio no JSON bonito que o Frontend espera
+          // O XML do Nikto geralmente tem a estrutura: <niktoscan><scandetails><item>...</item></scandetails></niktoscan>
+          
+          const scanDetails = xmlRaw?.niktoscan?.scandetails?.[0];
+          
+          if (!scanDetails) {
+             throw new Error("Formato XML do Nikto inválido ou vazio.");
+          }
+
+          const rawItems = scanDetails.item || [];
+
+          // Mapeia as vulnerabilidades
+          const vulnerabilities = rawItems.map((item: any) => ({
+            id: item?.$?.id || "0",
+            method: item?.$?.method || "UNKNOWN",
+            osvdb: item?.$?.osvdbid || "0",
+            msg: item?.description?.[0] || "Sem descrição",
+            url: item?.uri?.[0] || "/"
+          }));
+
+          // Monta o objeto final limpo
+          const cleanResult = {
+            host: scanDetails?.$?.targethostname || target,
+            ip: scanDetails?.$?.targetip,
+            port: scanDetails?.$?.sitename, // Nikto põe porta/site aqui as vezes
+            banner: scanDetails?.$?.banner || "Banner não detectado",
+            vulnerabilities: vulnerabilities
+          };
+
+          resolve(cleanResult);
+
+        } catch (e) {
+          reject(new Error(`Erro ao processar XML do Nikto: ${e.message}`));
+        }
+      });
+    });
+  }
+  
 }
