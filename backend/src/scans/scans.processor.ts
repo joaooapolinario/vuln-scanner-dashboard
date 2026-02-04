@@ -90,6 +90,9 @@ export class ScansProcessor extends WorkerHost {
       
       // MUDANÇA: Usamos -Format xml (universalmente suportado)
       // Removemos o -h e usamos apenas o target direto se preferir, ou mantemos -h
+      // -Tuning 123b: Modo "Rápido" (apenas testes comuns)
+      // -maxtime 180s: Limita o scan a 3 minutos (para não travar o servidor)
+      // se for fazer varredura completa, remover o maxtime e o tuning
       const nikto = spawn('nikto', ['-h', target, '-o', tempFile, '-Format', 'xml', '-maxtime', '180s', '-Tuning', '123b']);
 
       let stderrLog = '';

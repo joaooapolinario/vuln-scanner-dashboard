@@ -74,6 +74,28 @@ graph TD
 
 - [x] Histórico de Auditoria: Registro de quem solicitou cada análise.
 
+## 🔌 Referência da API
+
+### Autenticação
+
+| Método | Endpoint         | Descrição                                  | Body Necessário               |
+| :----- | :--------------- | :----------------------------------------- | :---------------------------- |
+| `POST` | `/auth/login`    | Autentica um usuário e retorna o Token JWT | `{ "email": "...", "password": "..." }` |
+| `POST` | `/auth/register` | Registra um novo usuário no sistema        | `{ "email": "...", "password": "..." }` |
+
+### Varreduras (Scans)
+
+| Método | Endpoint | Descrição                                      | Body / Params |
+| :----- | :------- | :--------------------------------------------- | :------------ |
+| `POST` | `/scans` | Inicia uma nova varredura (Infra ou Web)       | `{ "target": "google.com", "type": "NETWORK" \| "WEB" }` |
+| `GET`  | `/scans` | Retorna o histórico de scans do usuário logado | -             |
+
+### Dashboard & Métricas
+
+| Método | Endpoint | Descrição                                  |
+| :----- | :------- | :----------------------------------------- |
+| `GET`  | `/stats` | Retorna métricas agregadas (Total, Top Vulns) para os gráficos |
+
 ## 📦 Como Rodar Localmente
 ### Pré-requisitos
 - Node.js (v18+)
@@ -130,3 +152,13 @@ Acesse o frontend no navegador. Crie uma conta ou use as credenciais de teste (s
 - Email: admin@scanner.com
 
 - Senha: 123
+
+## 📖 Documentação da API (Swagger)
+
+O backend possui uma documentação interativa gerada automaticamente (OpenAPI/Swagger). Isso permite visualizar os contratos de dados (DTOs) e testar endpoints diretamente pelo navegador.
+
+1. Inicie o servidor Backend.
+2. Acesse: `http://localhost:3000/api`
+3. Use os endpoints para simular requisições (Ex: Login, Criar Scan).
+
+> **Dica:** Para testar rotas protegidas, faça o login na rota `/auth/login`, copie o `access_token` e cole no botão **Authorize** (canto superior direito) do Swagger.
