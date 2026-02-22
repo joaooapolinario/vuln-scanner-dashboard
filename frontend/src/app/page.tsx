@@ -1,5 +1,6 @@
 "use client";
 
+import { io } from "socket.io-client";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
 import { useRouter } from "next/navigation";
@@ -76,16 +77,13 @@ const parseNmapResult = (scan: Scan) => {
   if (scan.status !== "COMPLETED" || !scan.result) return null;
 
   try {
-    // Tenta pegar o host. Se o Nmap disse que o host está down, isso pode vir vazio.
     const nmapRun = scan.result?.nmaprun;
     const host = nmapRun?.host?.[0];
 
-    // Se não achou host (ex: DNS falhou ou host offline), retornamos um objeto básico
-    // para a interface não ficar em branco.
     if (!host) {
       return {
         ip: "Alvo não respondeu",
-        openPorts: [], // Lista vazia
+        openPorts: [],
       };
     }
 
@@ -112,12 +110,9 @@ const parseNmapResult = (scan: Scan) => {
 // Parser para NIKTO (Web Scan)
 const parseNiktoResult = (scan: Scan) => {
   if (scan.status !== "COMPLETED" || !scan.result) return null;
-  // O Nikto retorna um objeto com 'vulnerabilities' (array) ou banners
   try {
-    // Adaptação: Se o backend salvou o JSON direto
     const vulns = scan.result.vulnerabilities || [];
 
-    // Filtra apenas o que tem mensagem útil
     const cleanVulns = vulns.map((v: any) => ({
       id: v.id,
       method: v.method,
@@ -138,7 +133,6 @@ const parseNiktoResult = (scan: Scan) => {
 };
 
 export default function Home() {
-  // 1. TODOS OS HOOKS DEVEM FICAR NO TOPO
   const { token, logout, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -149,12 +143,15 @@ export default function Home() {
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [scanType, setScanType] = useState<"NETWORK" | "WEB">("NETWORK");
 
-  // 2. DEFINIÇÃO DE FUNÇÕES
   const fetchDashboardData = async () => {
     try {
       const [scansRes, statsRes] = await Promise.all([
-        fetch("http://localhost:3000/scans"),
-        fetch("http://localhost:3000/scans/stats"),
+        fetch("http://localhost:3000/scans", {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch("http://localhost:3000/scans/stats", {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
       ]);
 
       const scansData = await scansRes.json();
@@ -171,7 +168,6 @@ export default function Home() {
     if (!target) return;
     setLoading(true);
     try {
-      // Envia o Token no Header
       const res = await fetch("http://localhost:3000/scans", {
         method: "POST",
         headers: {
@@ -188,7 +184,7 @@ export default function Home() {
       }
 
       setTarget("");
-      fetchDashboardData();
+      fetchDashboardData(); 
     } catch (error) {
       alert("Erro");
     } finally {
@@ -211,21 +207,31 @@ export default function Home() {
 
   const chartColors = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe"];
 
-  // Effect de Proteção de Rota
   useEffect(() => {
     if (!authLoading && !token) {
       router.push("/login");
     }
   }, [token, authLoading, router]);
 
-  // Effect de Polling de Dados
   useEffect(() => {
-    // Só busca dados se tiver token
-    if (token) {
-      fetchDashboardData();
-      const interval = setInterval(fetchDashboardData, 5000);
-      return () => clearInterval(interval);
-    }
+    if (!token) return;
+
+    fetchDashboardData();
+
+    const socket = io("http://localhost:3000");
+
+    socket.on("connect", () => {
+      console.log("⚡ Conectado ao WebSocket em tempo real!");
+    });
+
+    socket.on("scanUpdate", (data) => {
+      console.log("🔄 Atualização de scan recebida via Socket:", data);
+      fetchDashboardData(); 
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, [token]);
 
   if (authLoading || !token) {
@@ -236,11 +242,9 @@ export default function Home() {
     );
   }
 
-  // 5. RENDERIZAÇÃO PRINCIPAL
   return (
     <div className="min-h-screen bg-slate-50 p-8 font-sans text-slate-900">
       <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
@@ -255,7 +259,6 @@ export default function Home() {
           </Button>
         </div>
 
-        {/* --- SEÇÃO DE WIDGETS --- */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <Card className="col-span-2">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -326,14 +329,12 @@ export default function Home() {
           </Card>
         </div>
 
-        {/* --- ÁREA DE INPUT E TABELA --- */}
         <div className="grid gap-4 md:grid-cols-7">
           <Card className="col-span-3 h-fit">
             <CardHeader>
               <CardTitle>Iniciar Nova Varredura</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              {/* SELETOR DE TIPO */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">
                   Tipo de Análise
@@ -362,7 +363,6 @@ export default function Home() {
                 </Select>
               </div>
 
-              {/* INPUT DE ALVO */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">
                   Alvo (IP ou URL)
@@ -430,7 +430,6 @@ export default function Home() {
                           </DialogTrigger>
 
                           <DialogContent className="max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0">
-                            {/* HEADER FIXO */}
                             <div className="p-6 sm:p-8 border-b sticky top-0 bg-white z-10">
                               <DialogHeader>
                                 <div className="flex flex-col gap-4">
@@ -465,19 +464,16 @@ export default function Home() {
                               </DialogHeader>
                             </div>
 
-                            {/* CONTEÚDO */}
                             <div className="p-6 sm:p-8 space-y-8">
-                              {/* LOADING */}
                               {scan.status === "PROCESSING" && (
                                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground bg-slate-50 rounded-xl border-2 border-dashed">
                                   <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mb-4"></div>
                                   <p className="text-lg font-medium">
-                                    Analisando infraestrutura...
+                                    Analisando alvo selecionado...
                                   </p>
                                 </div>
                               )}
 
-                              {/* ERROR */}
                               {scan.status === "FAILED" && (
                                 <div className="p-6 bg-red-50 border border-red-100 text-red-800 rounded-xl">
                                   <h4 className="font-bold flex items-center gap-2 mb-2 text-lg">
@@ -485,19 +481,17 @@ export default function Home() {
                                     Fatal
                                   </h4>
                                   <pre className="bg-white/50 p-4 rounded-lg text-sm font-mono text-red-900 border border-red-200 mt-4">
-                                    {scan.logs || "Erro desconhecido."}
+                                    {scan.logs || "Erro desconhecido. Verifique o console do Worker."}
                                   </pre>
                                 </div>
                               )}
 
-                              {/* SUCCESS */}
                               {scan.status === "COMPLETED" && (
                                 <>
-                                  {/* === RENDERIZAÇÃO PARA NMAP (NETWORK) === */}
+                                  {/* RENDERIZAÇÃO NMAP */}
                                   {((scan as any).type === "NETWORK" ||
                                     !(scan as any).type) && (
                                     <>
-                                      {/* Verifica se o parser retornou dados válidos */}
                                       {parseNmapResult(scan) ? (
                                         <>
                                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -528,7 +522,6 @@ export default function Home() {
                                                 </div>
                                               </CardContent>
                                             </Card>
-                                            {/* Card Data */}
                                             <Card className="bg-slate-50/50 border-slate-100 shadow-sm">
                                               <CardHeader className="pb-2">
                                                 <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">
@@ -547,14 +540,12 @@ export default function Home() {
 
                                           <Separator />
 
-                                          {/* TABELA DE PORTAS */}
                                           <div>
                                             <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800">
                                               <Activity className="h-6 w-6 text-blue-600" />{" "}
                                               Detalhamento de Portas
                                             </h3>
 
-                                            {/* Se tiver portas, mostra a tabela. Se não, mostra aviso. */}
                                             {parseNmapResult(scan)?.openPorts
                                               .length === 0 ? (
                                               <div className="p-8 text-center border-2 border-dashed rounded-xl bg-slate-50 text-slate-500">
@@ -625,7 +616,6 @@ export default function Home() {
                                           </div>
                                         </>
                                       ) : (
-                                        /* CASO O PARSER RETORNE NULL (Erro no JSON) */
                                         <div className="p-6 bg-yellow-50 text-yellow-800 rounded-xl border border-yellow-200">
                                           <h3 className="font-bold">
                                             Formato de Resposta Inválido
@@ -640,10 +630,9 @@ export default function Home() {
                                     </>
                                   )}
 
-                                  {/* === RENDERIZAÇÃO PARA NIKTO (WEB) === */}
+                                  {/* RENDERIZAÇÃO NIKTO */}
                                   {((scan as any).type === 'WEB') && parseNiktoResult(scan) && (
                                     <>
-                                      {/* CABEÇALHO RESUMIDO */}
                                       <div className="flex flex-col md:flex-row gap-4 mb-6">
                                           <div className="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-200">
                                               <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Servidor Web</h4>
@@ -665,7 +654,6 @@ export default function Home() {
 
                                       <Separator className="my-6" />
 
-                                      {/* LISTA DE VULNERABILIDADES (Feed Style) */}
                                       <div>
                                           <h3 className="text-lg font-bold mb-4 text-slate-800 flex items-center gap-2">
                                             <ShieldAlert className="h-5 w-5 text-red-600" /> Detalhes dos Achados
@@ -675,7 +663,6 @@ export default function Home() {
                                             {parseNiktoResult(scan)?.vulnerabilities.map((v: any, i: number) => (
                                               <div key={i} className="p-4 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors bg-white shadow-sm">
                                                   
-                                                  {/* Linha 1: Método e ID */}
                                                   <div className="flex items-center gap-2 mb-2">
                                                       <Badge variant="outline" className={`
                                                         font-mono text-[10px] px-2 border-0 font-bold
@@ -690,12 +677,10 @@ export default function Home() {
                                                       )}
                                                   </div>
 
-                                                  {/* Linha 2: A Mensagem Principal */}
                                                   <p className="text-sm text-slate-800 font-medium leading-relaxed">
                                                       {v.msg}
                                                   </p>
 
-                                                  {/* Linha 3: A URL (Se existir) */}
                                                   {v.url && v.url !== '/' && (
                                                       <div className="mt-3 bg-slate-50 p-2 rounded border border-slate-100 flex items-start gap-2 overflow-hidden">
                                                           <Globe className="h-3 w-3 text-slate-400 mt-1 shrink-0" />
