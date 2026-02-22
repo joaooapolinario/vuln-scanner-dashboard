@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { spawn } from 'child_process';
 import { parseStringPromise } from 'xml2js';
+import { ScansGateway } from './scans.gateway';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -11,7 +12,10 @@ import * as path from 'path';
 export class ScansProcessor extends WorkerHost {
   private readonly logger = new Logger(ScansProcessor.name);
 
-  constructor(private prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly scansGateway: ScansGateway,
+  ) {
     super();
   }
 
@@ -33,6 +37,8 @@ export class ScansProcessor extends WorkerHost {
       data: { status: 'PROCESSING' },
     });
 
+    this.scansGateway.emitScanUpdate(scanId, 'PROCESSING');
+
     try {
       let result;
 
@@ -41,7 +47,6 @@ export class ScansProcessor extends WorkerHost {
       } else {
         result = await this.runNmap(target);
       }
-      // ----------------------------
 
       await this.prisma.scan.update({
         where: { id: scanId },
@@ -52,10 +57,12 @@ export class ScansProcessor extends WorkerHost {
         },
       });
       this.logger.log(`[Job ${job.id}] Scan finalizado.`);
+      this.scansGateway.emitScanUpdate(scanId, 'COMPLETED');
 
     } catch (error) {
       this.logger.error(`[Job ${job.id}] Erro: ${error.message}`);
       await this.failScan(scanId, error.message);
+      this.scansGateway.emitScanUpdate(scanId, 'FAILED');
     }
   }
 
