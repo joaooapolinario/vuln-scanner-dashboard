@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 
 interface AuthContextType {
@@ -14,11 +20,10 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // Para não piscar a tela de login se já tiver token
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    // Ao iniciar, verifica se já tem token salvo
     const storedToken = localStorage.getItem("scanner_token");
     if (storedToken) {
       setToken(storedToken);
@@ -28,12 +33,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (newToken: string) => {
     localStorage.setItem("scanner_token", newToken);
+    document.cookie = `scanner_token=${newToken}; path=/; max-age=86400`;
     setToken(newToken);
-    router.push("/"); // Manda para o dashboard
+    router.push("/");
   };
 
   const logout = () => {
     localStorage.removeItem("scanner_token");
+    document.cookie =
+      "scanner_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     setToken(null);
     router.push("/login");
   };
