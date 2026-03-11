@@ -55,6 +55,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AiRemediation } from "@/components/AiRemediation";
 
 interface Scan {
   id: string;
@@ -147,10 +148,10 @@ export default function Home() {
     try {
       const [scansRes, statsRes] = await Promise.all([
         fetch("http://localhost:3000/scans", {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         }),
         fetch("http://localhost:3000/scans/stats", {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
 
@@ -184,7 +185,7 @@ export default function Home() {
       }
 
       setTarget("");
-      fetchDashboardData(); 
+      fetchDashboardData();
     } catch (error) {
       alert("Erro");
     } finally {
@@ -226,7 +227,7 @@ export default function Home() {
 
     socket.on("scanUpdate", (data) => {
       console.log("🔄 Atualização de scan recebida via Socket:", data);
-      fetchDashboardData(); 
+      fetchDashboardData();
     });
 
     return () => {
@@ -481,7 +482,8 @@ export default function Home() {
                                     Fatal
                                   </h4>
                                   <pre className="bg-white/50 p-4 rounded-lg text-sm font-mono text-red-900 border border-red-200 mt-4">
-                                    {scan.logs || "Erro desconhecido. Verifique o console do Worker."}
+                                    {scan.logs ||
+                                      "Erro desconhecido. Verifique o console do Worker."}
                                   </pre>
                                 </div>
                               )}
@@ -631,70 +633,113 @@ export default function Home() {
                                   )}
 
                                   {/* RENDERIZAÇÃO NIKTO */}
-                                  {((scan as any).type === 'WEB') && parseNiktoResult(scan) && (
-                                    <>
-                                      <div className="flex flex-col md:flex-row gap-4 mb-6">
+                                  {(scan as any).type === "WEB" &&
+                                    parseNiktoResult(scan) && (
+                                      <>
+                                        <div className="flex flex-col md:flex-row gap-4 mb-6">
                                           <div className="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                              <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Servidor Web</h4>
-                                              <div className="text-lg font-mono font-bold text-slate-800 break-all">
-                                                  {parseNiktoResult(scan)?.host}
-                                              </div>
-                                              <div className="text-xs text-slate-500 mt-1">
-                                                  {parseNiktoResult(scan)?.banner || "Banner não detectado"}
-                                              </div>
+                                            <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">
+                                              Servidor Web
+                                            </h4>
+                                            <div className="text-lg font-mono font-bold text-slate-800 break-all">
+                                              {parseNiktoResult(scan)?.host}
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1">
+                                              {parseNiktoResult(scan)?.banner ||
+                                                "Banner não detectado"}
+                                            </div>
                                           </div>
 
                                           <div className="w-full md:w-48 bg-red-50 p-4 rounded-lg border border-red-100 flex flex-col justify-center items-center">
-                                              <h4 className="text-xs font-bold text-red-600 uppercase mb-1">Vulnerabilidades</h4>
-                                              <div className="text-3xl font-bold text-red-700">
-                                                  {parseNiktoResult(scan)?.vulnerabilities.length}
-                                              </div>
+                                            <h4 className="text-xs font-bold text-red-600 uppercase mb-1">
+                                              Vulnerabilidades
+                                            </h4>
+                                            <div className="text-3xl font-bold text-red-700">
+                                              {
+                                                parseNiktoResult(scan)
+                                                  ?.vulnerabilities.length
+                                              }
+                                            </div>
                                           </div>
-                                      </div>
+                                        </div>
 
-                                      <Separator className="my-6" />
+                                        <Separator className="my-6" />
 
-                                      <div>
+                                        <div>
                                           <h3 className="text-lg font-bold mb-4 text-slate-800 flex items-center gap-2">
-                                            <ShieldAlert className="h-5 w-5 text-red-600" /> Detalhes dos Achados
+                                            <ShieldAlert className="h-5 w-5 text-red-600" />{" "}
+                                            Detalhes dos Achados
                                           </h3>
-                                          
+
                                           <div className="space-y-3">
-                                            {parseNiktoResult(scan)?.vulnerabilities.map((v: any, i: number) => (
-                                              <div key={i} className="p-4 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors bg-white shadow-sm">
-                                                  
+                                            {parseNiktoResult(
+                                              scan,
+                                            )?.vulnerabilities.map(
+                                              (v: any, i: number) => (
+                                                <div
+                                                  key={i}
+                                                  className="p-4 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors bg-white shadow-sm"
+                                                >
                                                   <div className="flex items-center gap-2 mb-2">
-                                                      <Badge variant="outline" className={`
+                                                    <Badge
+                                                      variant="outline"
+                                                      className={`
                                                         font-mono text-[10px] px-2 border-0 font-bold
-                                                        ${v.method === 'GET' ? 'bg-blue-100 text-blue-700' : 
-                                                          v.method === 'POST' ? 'bg-green-100 text-green-700' : 
-                                                          'bg-slate-100 text-slate-700'}
-                                                      `}>
-                                                        {v.method}
-                                                      </Badge>
-                                                      {v.osvdb !== '0' && (
-                                                          <span className="text-[10px] font-mono text-slate-400">OSVDB: {v.osvdb}</span>
-                                                      )}
+                                                        ${
+                                                          v.method === "GET"
+                                                            ? "bg-blue-100 text-blue-700"
+                                                            : v.method ===
+                                                                "POST"
+                                                              ? "bg-green-100 text-green-700"
+                                                              : "bg-slate-100 text-slate-700"
+                                                        }
+                                                      `}
+                                                    >
+                                                      {v.method}
+                                                    </Badge>
+                                                    {v.osvdb !== "0" && (
+                                                      <span className="text-[10px] font-mono text-slate-400">
+                                                        OSVDB: {v.osvdb}
+                                                      </span>
+                                                    )}
                                                   </div>
 
                                                   <p className="text-sm text-slate-800 font-medium leading-relaxed">
-                                                      {v.msg}
+                                                    {v.msg}
                                                   </p>
 
-                                                  {v.url && v.url !== '/' && (
-                                                      <div className="mt-3 bg-slate-50 p-2 rounded border border-slate-100 flex items-start gap-2 overflow-hidden">
-                                                          <Globe className="h-3 w-3 text-slate-400 mt-1 shrink-0" />
-                                                          <code className="text-xs font-mono text-blue-600 break-all">
-                                                              {v.url}
-                                                          </code>
-                                                      </div>
+                                                  {v.url && v.url !== "/" && (
+                                                    <div className="mt-3 bg-slate-50 p-2 rounded border border-slate-100 flex items-start gap-2 overflow-hidden">
+                                                      <Globe className="h-3 w-3 text-slate-400 mt-1 shrink-0" />
+                                                      <code className="text-xs font-mono text-blue-600 break-all">
+                                                        {v.url}
+                                                      </code>
+                                                    </div>
                                                   )}
-                                              </div>
-                                            ))}
+
+                                                  {/* --- BOTÃO DA IA AQUI --- */}
+                                                  <div className="mt-3">
+                                                    <AiRemediation
+                                                      tool="Nikto (Web Scan)"
+                                                      finding={v.msg}
+                                                    />
+                                                  </div>
+
+                                                  {v.url && v.url !== "/" && (
+                                                    <div className="mt-3 bg-slate-50 p-2 rounded border border-slate-100 flex items-start gap-2 overflow-hidden">
+                                                      <Globe className="h-3 w-3 text-slate-400 mt-1 shrink-0" />
+                                                      <code className="text-xs font-mono text-blue-600 break-all">
+                                                        {v.url}
+                                                      </code>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ),
+                                            )}
                                           </div>
-                                      </div>
-                                    </>
-                                  )}
+                                        </div>
+                                      </>
+                                    )}
 
                                   {/* DEBUG JSON (COMUM PARA OS DOIS) */}
                                   <div className="mt-8 pt-6 border-t border-slate-100">
