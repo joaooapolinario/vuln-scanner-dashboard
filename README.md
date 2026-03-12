@@ -37,6 +37,7 @@ Diferente de scripts simples de automação, este projeto foca em **Arquitetura 
 - **Redis**: Backend para filas de mensagens.
 - **Nmap**: Engine de varredura de rede (Network Mapper).
 - **Nikto**: Engine de varredura de vulnerabilidades Web.
+- **IA**: Integração com Google Gemini para solicitar explicação sobre a vulnerabilidade.
 
 ---
 
@@ -62,18 +63,13 @@ graph TD
     end
 ```
 ## ✨ Funcionalidades
-- [x] Autenticação Segura: Login e Registro com hash de senha (Bcrypt) e JWT.
 
-- [x] Dashboard em Tempo Real: Visualização de status de scans (Pending, Processing, Completed).
-
-- [x] Múltiplos Motores de Scan: Suporte para Infraestrutura (Nmap) e Aplicações Web (Nikto).
-
-- [x] Gráficos de Inteligência: Métricas de portas mais expostas e contagem de vulnerabilidades.
-
-- [x] Relatórios Híbridos: Visualização adaptativa (Tabelas para Rede / Feed de Vulnerabilidades para Web).
-
-- [x] Histórico de Auditoria: Registro de quem solicitou cada análise.
-
+* **Scans de Infraestrutura:** Integração com Nmap para descoberta de portas abertas e serviços.
+* **Scans de Aplicação Web:** Integração com Nikto para detecção de vulnerabilidades web.
+* **Processamento Assíncrono:** Uso de filas (BullMQ) e Redis para gerenciar múltiplos scans pesados sem travar a API.
+* **Tempo Real (WebSockets):** Atualização instantânea do dashboard utilizando Socket.io.
+* **Inteligência Artificial (DevSecOps):** Integração com Google Gemini API para explicar vulnerabilidades e sugerir correções de código sob demanda.
+* **Cache de IA (Performance):** Sistema de *Memoization* no PostgreSQL para respostas da IA, reduzindo a latência de ~3s para ~50ms e otimizando o consumo de tokens.
 ## 🔌 Referência da API
 
 ### Autenticação
