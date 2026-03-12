@@ -47,3 +47,10 @@ model Scan {
   createdAt   DateTime    @default(now())
   finishedAt  DateTime?
 }
+
+model AiCache {
+  id          String   @id @default(uuid())
+  finding     String   @unique
+  explanation String   
+  createdAt   DateTime @default(now())
+}
