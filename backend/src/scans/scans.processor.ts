@@ -23,9 +23,7 @@ export class ScansProcessor extends WorkerHost {
     const { scanId, target, type } = job.data;
     this.logger.log(`[Job ${job.id}] Iniciando scan ${type} contra: ${target}`);
 
-    // Validação Básica (Sanitization)
-    // Para WEB, permitimos : e / (ex: http://alvo.com)
-    const isSafeTarget = /^[a-zA-Z0-9.:\/-]+$/.test(target);
+    const isSafeTarget = /^[a-zA-Z0-9][a-zA-Z0-9.:\/-]*$/.test(target);
     
     if (!isSafeTarget) {
       await this.failScan(scanId, `Alvo suspeito rejeitado: ${target}`);
@@ -40,12 +38,26 @@ export class ScansProcessor extends WorkerHost {
     this.scansGateway.emitScanUpdate(scanId, 'PROCESSING');
 
     try {
-      let result;
+      let result: any;
+      let summary: any = null;
 
       if (type === 'WEB') {
         result = await this.runNikto(target, scanId);
       } else {
         result = await this.runNmap(target);
+        
+        const openPorts: string[] = [];
+        try {
+          const ports = result?.nmaprun?.host?.[0]?.ports?.[0]?.port || [];
+          ports.forEach((p: any) => {
+            const portId = p.$.portid + '/' + p.$.protocol;
+            if (p.state?.[0]?.$.state === 'open') {
+               openPorts.push(portId);
+            }
+          });
+        } catch (e) {
+        }
+        summary = { openPorts };
       }
 
       await this.prisma.scan.update({
@@ -53,6 +65,7 @@ export class ScansProcessor extends WorkerHost {
         data: {
           status: 'COMPLETED',
           result: result as any,
+          summary: summary as any,
           finishedAt: new Date(),
         },
       });
@@ -92,11 +105,8 @@ export class ScansProcessor extends WorkerHost {
   // --- ENGINE NIKTO ---
   private runNikto(target: string, scanId: string): Promise<any> {
     return new Promise((resolve, reject) => {
-      // MUDANÇA: Extensão .xml
       const tempFile = path.join('/tmp', `nikto_${scanId}.xml`);
       
-      // MUDANÇA: Usamos -Format xml (universalmente suportado)
-      // Removemos o -h e usamos apenas o target direto se preferir, ou mantemos -h
       // -Tuning 123b: Modo "Rápido" (apenas testes comuns)
       // -maxtime 180s: Limita o scan a 3 minutos (para não travar o servidor)
       // se for fazer varredura completa, remover o maxtime e o tuning
@@ -112,21 +122,15 @@ export class ScansProcessor extends WorkerHost {
 
       nikto.on('close', async (code) => {
         if (!fs.existsSync(tempFile)) {
-           // Se falhar e não gerar arquivo, rejeita
            return reject(new Error(`Nikto falhou. Erro: ${stderrLog}`));
         }
 
         try {
           const fileContent = fs.readFileSync(tempFile, 'utf8');
           
-          // 1. Converte XML para Objeto JS Bruto
           const xmlRaw = await parseStringPromise(fileContent);
           
-          // Limpa arquivo
           fs.unlinkSync(tempFile);
-
-          // 2. Mapeamento (Adapter): Transforma o XML feio no JSON bonito que o Frontend espera
-          // O XML do Nikto geralmente tem a estrutura: <niktoscan><scandetails><item>...</item></scandetails></niktoscan>
           
           const scanDetails = xmlRaw?.niktoscan?.scandetails?.[0];
           
@@ -136,7 +140,6 @@ export class ScansProcessor extends WorkerHost {
 
           const rawItems = scanDetails.item || [];
 
-          // Mapeia as vulnerabilidades
           const vulnerabilities = rawItems.map((item: any) => ({
             id: item?.$?.id || "0",
             method: item?.$?.method || "UNKNOWN",
@@ -145,11 +148,10 @@ export class ScansProcessor extends WorkerHost {
             url: item?.uri?.[0] || "/"
           }));
 
-          // Monta o objeto final limpo
           const cleanResult = {
             host: scanDetails?.$?.targethostname || target,
             ip: scanDetails?.$?.targetip,
-            port: scanDetails?.$?.sitename, // Nikto põe porta/site aqui as vezes
+            port: scanDetails?.$?.sitename, 
             banner: scanDetails?.$?.banner || "Banner não detectado",
             vulnerabilities: vulnerabilities
           };

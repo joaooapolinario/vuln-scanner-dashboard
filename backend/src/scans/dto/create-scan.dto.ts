@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, IsEnum, IsOptional, Matches } from 'class-validator';
 
 export enum ScanTypeDto {
   NETWORK = 'NETWORK',
@@ -10,6 +11,9 @@ export class CreateScanDto {
     example: 'scanme.nmap.org', 
     description: 'Alvo da varredura (Domínio ou IP)' 
   })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9.:\/-]*$/, { message: 'Alvo inválido. Não pode iniciar com caracteres especiais ou flags.' })
   target: string;
 
   @ApiProperty({ 
@@ -19,5 +23,7 @@ export class CreateScanDto {
     required: false,
     default: 'NETWORK'
   })
+  @IsOptional()
+  @IsEnum(ScanTypeDto)
   type?: 'NETWORK' | 'WEB';
 }

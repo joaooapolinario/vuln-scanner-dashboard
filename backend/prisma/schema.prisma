@@ -37,11 +37,11 @@ model Scan {
   id          String      @id @default(uuid())
   target      String
   portRange   String?
-  // 2. Adicione este campo
   type        ScanType    @default(NETWORK) 
   
   status      ScanStatus  @default(PENDING)
   result      Json?
+  summary     Json?
   logs        String?
   userId      String?
   createdAt   DateTime    @default(now())

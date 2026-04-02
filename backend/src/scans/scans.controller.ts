@@ -6,6 +6,7 @@ import { CreateScanDto } from './dto/create-scan.dto';
 
 @ApiTags('Scans')
 @ApiBearerAuth()
+@UseGuards(AuthGuard)
 @Controller('scans')
 export class ScansController {
   constructor(private readonly scansService: ScansService) {}
@@ -16,7 +17,6 @@ export class ScansController {
     return this.scansService.getStats()
   }
 
-  @UseGuards(AuthGuard)
   @Post()
   @ApiOperation({ summary: 'Iniciar uma nova varredura (Infra ou Web)' })
   async createScan(

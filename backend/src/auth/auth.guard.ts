@@ -20,13 +20,8 @@ export class AuthGuard implements CanActivate {
     }
     
     try {
-      // 1. Verifica se a assinatura do token é válida (usando o segredo do AuthModule)
-      const payload = await this.jwtService.verifyAsync(token, {
-        secret: 'SEGREDO_SUPER_SECRETO_DEV', // Em prod, use process.env
-      });
+      const payload = await this.jwtService.verifyAsync(token);
       
-      // 2. Anexa os dados do usuário (payload) ao objeto Request
-      // Assim, podemos acessar request['user'] nos controllers
       request['user'] = payload;
     } catch {
       throw new UnauthorizedException();

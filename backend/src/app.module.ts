@@ -6,9 +6,11 @@ import { ScansModule } from './scans/scans.module';
 import { BullModule } from '@nestjs/bullmq';
 import { AuthModule } from './auth/auth.module';
 import { AiModule } from './ai/ai.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     BullModule.forRoot({
       connection: {
         host: 'localhost',
