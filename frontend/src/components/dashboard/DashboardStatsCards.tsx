@@ -76,7 +76,7 @@ export function DashboardStatsCards({ stats }: DashboardStatsCardsProps) {
               />
               <Tooltip cursor={{ fill: "transparent" }} />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                {stats?.topPorts.map((entry, index) => (
+                {(stats?.topPorts || []).map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
                     fill={chartColors[index % chartColors.length]}

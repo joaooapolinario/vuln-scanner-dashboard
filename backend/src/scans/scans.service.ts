@@ -13,17 +13,20 @@ export class ScansService {
 
   ) {}
 
-  async getStats() {
-    const totalScans = await this.prisma.scan.count();
+  async getStats(userId: string) {
+    const totalScans = await this.prisma.scan.count({
+      where: { userId },
+    });
     
     const uniqueTargetsGroup = await this.prisma.scan.groupBy({
       by: ['target'],
+      where: { userId },
       _count: { target: true },
     });
     const uniqueTargets = uniqueTargetsGroup.length;
 
     const completedScans = await this.prisma.scan.findMany({
-      where: { status: 'COMPLETED', type: 'NETWORK', summary: { not: Prisma.DbNull } },
+      where: { userId, status: 'COMPLETED', type: 'NETWORK', summary: { not: Prisma.DbNull } },
       select: { summary: true }, 
       take: 1000, 
     });
@@ -70,15 +73,16 @@ export class ScansService {
     return scan;
   }
 
-  async findAll() {
+  async findAll(userId: string) {
     return this.prisma.scan.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId: string) {
     return this.prisma.scan.findUnique({
-      where: { id },
+      where: { id, userId },
     });
   }
 }

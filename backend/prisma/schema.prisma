@@ -25,6 +25,7 @@ model User {
   password  String
   name      String
   role      Role     @default(ANALYST)
+  scans     Scan[]
   createdAt DateTime @default(now())
 }
 
@@ -44,6 +45,7 @@ model Scan {
   summary     Json?
   logs        String?
   userId      String?
+  user        User?       @relation(fields: [userId], references: [id])
   createdAt   DateTime    @default(now())
   finishedAt  DateTime?
 }

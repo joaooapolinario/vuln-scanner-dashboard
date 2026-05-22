@@ -10,7 +10,7 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async signIn(email: string, pass: string) {
+  async signIn({email, pass}: {email: string, pass: string}) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     
     if (!user) {
@@ -32,16 +32,23 @@ export class AuthService {
     };
   }
 
-  async register(data: { email: string; pass: string; name: string }) {
-    const hashedPassword = await bcrypt.hash(data.pass, 10);
+  async register({email, pass, name}: {email: string, pass: string, name: string}) {
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new Error('E-mail já está em uso.');
+    }
 
-    return this.prisma.user.create({
+    const hashedPassword = await bcrypt.hash(pass, 10);
+
+    const user = await this.prisma.user.create({
       data: {
-        email: data.email,
+        email,
+        name,
         password: hashedPassword,
-        name: data.name,
-        role: 'ANALYST', // Default role
       },
     });
+
+    const { password, ...result } = user;
+    return result;
   }
 }

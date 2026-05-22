@@ -5,10 +5,11 @@ import { ScansController } from './scans.controller';
 import { ScansProcessor } from './scans.processor';
 import { ScansGateway } from './scans.gateway';
 import { PrismaModule } from 'src/prisma/prisma.module';
-
+import { AuthModule } from '../auth/auth.module';
 @Module({
     imports: [
         PrismaModule,
+        AuthModule,
         BullModule.registerQueue({
             name: 'scans',
         }),

@@ -23,7 +23,9 @@ export class ScansProcessor extends WorkerHost {
     const { scanId, target, type } = job.data;
     this.logger.log(`[Job ${job.id}] Iniciando scan ${type} contra: ${target}`);
 
-    const isSafeTarget = /^[a-zA-Z0-9][a-zA-Z0-9.:\/-]*$/.test(target);
+    const isSafeFormat = /^[a-zA-Z0-9][a-zA-Z0-9.:\/-]*$/.test(target);
+    const hasInjection = target.startsWith('-') || target.includes(' ');
+    const isSafeTarget = isSafeFormat && !hasInjection;
     
     if (!isSafeTarget) {
       await this.failScan(scanId, `Alvo suspeito rejeitado: ${target}`);
@@ -126,11 +128,8 @@ export class ScansProcessor extends WorkerHost {
         }
 
         try {
-          const fileContent = fs.readFileSync(tempFile, 'utf8');
-          
+          const fileContent = await fs.promises.readFile(tempFile, 'utf8');
           const xmlRaw = await parseStringPromise(fileContent);
-          
-          fs.unlinkSync(tempFile);
           
           const scanDetails = xmlRaw?.niktoscan?.scandetails?.[0];
           
@@ -160,6 +159,14 @@ export class ScansProcessor extends WorkerHost {
 
         } catch (e) {
           reject(new Error(`Erro ao processar XML do Nikto: ${e.message}`));
+        } finally {
+          if (fs.existsSync(tempFile)) {
+            try {
+              fs.unlinkSync(tempFile);
+            } catch (err) {
+              this.logger.error(`Erro ao deletar arquivo temporário: ${err.message}`);
+            }
+          }
         }
       });
     });

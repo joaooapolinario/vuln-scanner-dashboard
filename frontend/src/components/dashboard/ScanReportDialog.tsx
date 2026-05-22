@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,9 @@ interface ScanReportDialogProps {
 }
 
 export function ScanReportDialog({ scan, selectedScan, setSelectedScan }: ScanReportDialogProps) {
+  const nmapData = useMemo(() => (scan.type === "NETWORK" || !scan.type) ? parseNmapResult(scan) : null, [scan]);
+  const niktoData = useMemo(() => scan.type === "WEB" ? parseNiktoResult(scan) : null, [scan]);
+
   return (
     <Dialog open={selectedScan?.id === scan.id} onOpenChange={(open) => !open && setSelectedScan(null)}>
       <DialogTrigger asChild>
@@ -98,7 +102,7 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan }: ScanRe
               {/* RENDERIZAÇÃO NMAP */}
               {(scan.type === "NETWORK" || !scan.type) && (
                 <>
-                  {parseNmapResult(scan) ? (
+                  {nmapData ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <Card className="bg-blue-50/50 border-blue-100 shadow-sm">
@@ -109,7 +113,7 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan }: ScanRe
                           </CardHeader>
                           <CardContent>
                             <div className="text-3xl font-bold font-mono text-slate-900">
-                              {parseNmapResult(scan)?.ip}
+                              {nmapData.ip}
                             </div>
                           </CardContent>
                         </Card>
@@ -121,7 +125,7 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan }: ScanRe
                           </CardHeader>
                           <CardContent>
                             <div className="text-3xl font-bold font-mono text-slate-900">
-                              {parseNmapResult(scan)?.openPorts.length}
+                              {nmapData.openPorts.length}
                             </div>
                           </CardContent>
                         </Card>
@@ -146,7 +150,7 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan }: ScanRe
                           <Activity className="h-6 w-6 text-blue-600" /> Detalhamento de Portas
                         </h3>
 
-                        {parseNmapResult(scan)?.openPorts.length === 0 ? (
+                        {nmapData.openPorts.length === 0 ? (
                           <div className="p-8 text-center border-2 border-dashed rounded-xl bg-slate-50 text-slate-500">
                             <p>Nenhuma porta aberta encontrada ou o host não respondeu ao ping.</p>
                             <p className="text-xs mt-2">Verifique o "JSON Bruto" abaixo para detalhes.</p>
@@ -163,7 +167,7 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan }: ScanRe
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {parseNmapResult(scan)?.openPorts.map((p: any, i: number) => (
+                                {nmapData.openPorts.map((p: any, i: number) => (
                                   <TableRow key={i} className="hover:bg-blue-50/30">
                                     <TableCell className="font-mono font-bold text-blue-700">
                                       {p.port}/{p.protocol}
@@ -195,23 +199,23 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan }: ScanRe
               )}
 
               {/* RENDERIZAÇÃO NIKTO */}
-              {scan.type === "WEB" && parseNiktoResult(scan) && (
+              {scan.type === "WEB" && niktoData && (
                 <>
                   <div className="flex flex-col md:flex-row gap-4 mb-6">
                     <div className="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-200">
                       <h4 className="text-xs font-bold text-slate-500 uppercase mb-1">Servidor Web</h4>
                       <div className="text-lg font-mono font-bold text-slate-800 break-all">
-                        {parseNiktoResult(scan)?.host}
+                        {niktoData.host}
                       </div>
                       <div className="text-xs text-slate-500 mt-1">
-                        {parseNiktoResult(scan)?.banner || "Banner não detectado"}
+                        {niktoData.banner || "Banner não detectado"}
                       </div>
                     </div>
 
                     <div className="w-full md:w-48 bg-red-50 p-4 rounded-lg border border-red-100 flex flex-col justify-center items-center">
                       <h4 className="text-xs font-bold text-red-600 uppercase mb-1">Vulnerabilidades</h4>
                       <div className="text-3xl font-bold text-red-700">
-                        {parseNiktoResult(scan)?.vulnerabilities.length}
+                        {niktoData.vulnerabilities.length}
                       </div>
                     </div>
                   </div>
@@ -224,7 +228,7 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan }: ScanRe
                     </h3>
 
                     <div className="space-y-3">
-                      {parseNiktoResult(scan)?.vulnerabilities.map((v: any, i: number) => (
+                      {niktoData.vulnerabilities.map((v: any, i: number) => (
                         <div key={i} className="p-4 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors bg-white shadow-sm">
                           <div className="flex items-center gap-2 mb-2">
                             <Badge

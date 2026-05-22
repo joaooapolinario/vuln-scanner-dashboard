@@ -39,28 +39,36 @@ export function RecentScansHistory({ scans, selectedScan, setSelectedScan }: Rec
             </TableRow>
           </TableHeader>
           <TableBody>
-            {scans.slice(0, 5).map((scan) => (
-              <TableRow key={scan.id}>
-                <TableCell className="font-medium truncate max-w-37.5">
-                  {scan.target}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={getStatusColor(scan.status) as any}
-                    className="text-[10px]"
-                  >
-                    {scan.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <ScanReportDialog
-                    scan={scan}
-                    selectedScan={selectedScan}
-                    setSelectedScan={setSelectedScan}
-                  />
+            {!Array.isArray(scans) || scans.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                  Nenhum scan encontrado.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              scans.slice(0, 5).map((scan) => (
+                <TableRow key={scan.id}>
+                  <TableCell className="font-medium truncate max-w-37.5">
+                    {scan.target}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={getStatusColor(scan.status) as any}
+                      className="text-[10px]"
+                    >
+                      {scan.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ScanReportDialog
+                      scan={scan}
+                      selectedScan={selectedScan}
+                      setSelectedScan={setSelectedScan}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </CardContent>

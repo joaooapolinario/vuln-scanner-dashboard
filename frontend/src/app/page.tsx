@@ -34,11 +34,16 @@ export default function Home() {
         }),
       ]);
 
-      const scansData = await scansRes.json();
-      const statsData = await statsRes.json();
+      if (scansRes.status === 401 || statsRes.status === 401) {
+        logout();
+        return;
+      }
 
-      setScans(scansData);
-      setStats(statsData);
+      const scansData = await scansRes.json().catch(() => []);
+      const statsData = await statsRes.json().catch(() => null);
+
+      setScans(Array.isArray(scansData) ? scansData : []);
+      setStats(statsData || { totalScans: 0, uniqueTargets: 0, topPorts: [] });
     } catch (error) {
       console.error("Erro ao buscar dados", error);
     }

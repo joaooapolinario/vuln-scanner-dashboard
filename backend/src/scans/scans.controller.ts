@@ -13,8 +13,8 @@ export class ScansController {
 
   @Get('stats')
   @ApiOperation({ summary: 'Obter estatísticas globais do dashboard' })
-  async getStats() {
-    return this.scansService.getStats()
+  async getStats(@Request() req) {
+    return this.scansService.getStats(req.user.sub)
   }
 
   @Post()
@@ -34,13 +34,13 @@ export class ScansController {
 
   @Get()
   @ApiOperation({ summary: 'Listar histórico de varreduras' })
-  async findAll() {
-    return this.scansService.findAll();
+  async findAll(@Request() req) {
+    return this.scansService.findAll(req.user.sub);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Buscar detalhes de uma varredura específica' })
-  async findOne(@Param('id') id: string) {
-    return this.scansService.findOne(id);
+  async findOne(@Param('id') id: string, @Request() req) {
+    return this.scansService.findOne(id, req.user.sub);
   }
 }
