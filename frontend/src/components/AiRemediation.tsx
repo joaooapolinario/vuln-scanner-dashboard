@@ -1,15 +1,7 @@
 import { useState } from "react";
-import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Bot, Sparkles, AlertTriangle } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import { Bot, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
 
 interface AiRemediationProps {
   tool: string;
@@ -17,19 +9,19 @@ interface AiRemediationProps {
 }
 
 export function AiRemediation({ tool, finding }: AiRemediationProps) {
-  const { token } = useAuth();
-  const [explanation, setExplanation] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [remediation, setRemediation] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchRemediation = async () => {
-    if (explanation) return; 
-
+    if (remediation) return;
+    
     setLoading(true);
     setError(null);
-
     try {
-      const response = await fetch("http://localhost:3000/ai/remediate", {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:3000/ai/remediation", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -38,69 +30,68 @@ export function AiRemediation({ tool, finding }: AiRemediationProps) {
         body: JSON.stringify({ tool, finding }),
       });
 
-      if (!response.ok) {
-        throw new Error("Falha ao consultar a IA");
+      if (!res.ok) {
+        throw new Error("Falha ao buscar recomendação da IA");
       }
 
-      const result = await response.json();
-      setExplanation(result.data);
+      const data = await res.json();
+      setRemediation(data.remediation);
     } catch (err: any) {
-      setError(err.message || "Erro desconhecido ao falar com a IA");
+      setError(err.message || "Erro desconhecido ao chamar IA");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleToggle = () => {
+    setIsOpen(!isOpen);
+    if (!isOpen && !remediation) {
+      fetchRemediation();
+    }
+  };
+
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button 
-          variant="secondary" 
-          size="sm" 
-          className="gap-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 mt-2"
-          onClick={fetchRemediation}
-        >
-          <Sparkles className="h-4 w-4" />
-          Explicar com IA
-        </Button>
-      </DialogTrigger>
-      
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-indigo-700 text-xl border-b pb-4">
-            <Bot className="h-6 w-6" />
-            Análise de Segurança por IA
-          </DialogTitle>
-        </DialogHeader>
+    <div className="mt-4 border border-primary/20 rounded-lg overflow-hidden">
+      <button
+        onClick={handleToggle}
+        className="w-full flex items-center justify-between p-3 bg-primary/10 hover:bg-primary/20 transition-colors text-primary"
+      >
+        <div className="flex items-center gap-2 font-semibold text-sm">
+          <Bot className="h-4 w-4" />
+          <span>Análise de IA (Gemini)</span>
+        </div>
+        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
 
-        <div className="mt-4">
-          <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" /> Alerta Original ({tool})
-            </h4>
-            <p className="font-mono text-sm text-slate-800">{finding}</p>
-          </div>
-
+      {isOpen && (
+        <div className="p-4 bg-[#1a1a21]/80 text-sm border-t border-primary/20 text-foreground">
           {loading && (
-            <div className="flex flex-col items-center justify-center py-12 text-indigo-400">
-              <Sparkles className="h-8 w-8 animate-pulse mb-4" />
-              <p>O Engenheiro de Segurança de IA está analisando a vulnerabilidade...</p>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Gemini está analisando esta vulnerabilidade...</span>
             </div>
           )}
 
           {error && (
-            <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200">
-              {error}
+            <div className="text-red-400 font-medium">
+              Erro: {error}
             </div>
           )}
 
-          {explanation && !loading && (
-            <div className="prose prose-slate max-w-none prose-headings:text-indigo-900 prose-a:text-indigo-600 prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1 prose-code:rounded">
-              <ReactMarkdown>{explanation}</ReactMarkdown>
+          {remediation && (
+            <div className="prose prose-sm prose-invert max-w-none prose-pre:bg-[#0a0a0c] prose-pre:border prose-pre:border-white/10 prose-headings:text-primary">
+              <div className="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg">
+                <h4 className="text-xs font-bold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+                  <Bot className="h-3 w-3" /> Contexto Analisado
+                </h4>
+                <p className="font-mono text-sm text-foreground">{finding}</p>
+              </div>
+              
+              <ReactMarkdown>{remediation}</ReactMarkdown>
             </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+    </div>
   );
 }
