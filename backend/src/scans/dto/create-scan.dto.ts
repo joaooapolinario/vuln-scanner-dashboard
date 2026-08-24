@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsEnum, IsOptional, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
+import { IsTarget } from '../validators/is-target.validator';
 
 export enum ScanTypeDto {
   NETWORK = 'NETWORK',
@@ -13,7 +14,7 @@ export class CreateScanDto {
   })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9.:\/-]*$/, { message: 'Alvo inválido. Não pode iniciar com caracteres especiais ou flags.' })
+  @IsTarget()
   target: string;
 
   @ApiProperty({ 

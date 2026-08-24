@@ -1,12 +1,14 @@
 import { Controller, Post, Body, Get, Param, UseGuards, Request } from '@nestjs/common';
 import { ScansService } from './scans.service';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '@prisma/client';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CreateScanDto } from './dto/create-scan.dto';
-
 @ApiTags('Scans')
 @ApiBearerAuth()
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
 @Controller('scans')
 export class ScansController {
   constructor(private readonly scansService: ScansService) {}
@@ -18,6 +20,7 @@ export class ScansController {
   }
 
   @Post()
+  @Roles(Role.ADMIN, Role.ANALYST)
   @ApiOperation({ summary: 'Iniciar uma nova varredura (Infra ou Web)' })
   async createScan(
     @Body() createScanDto: CreateScanDto, 

@@ -23,14 +23,6 @@ export class ScansProcessor extends WorkerHost {
     const { scanId, target, type } = job.data;
     this.logger.log(`[Job ${job.id}] Iniciando scan ${type} contra: ${target}`);
 
-    const isSafeFormat = /^[a-zA-Z0-9][a-zA-Z0-9.:\/-]*$/.test(target);
-    const hasInjection = target.startsWith('-') || target.includes(' ');
-    const isSafeTarget = isSafeFormat && !hasInjection;
-    
-    if (!isSafeTarget) {
-      await this.failScan(scanId, `Alvo suspeito rejeitado: ${target}`);
-      return;
-    }
 
     await this.prisma.scan.update({
       where: { id: scanId },
