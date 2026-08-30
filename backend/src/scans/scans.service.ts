@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
@@ -64,11 +64,23 @@ export class ScansService {
       },
     });
 
-    await this.scanQueue.add('perform-nmap-scan', {
-      scanId: scan.id,
-      target: scan.target,
-      type: scan.type
-    });
+    await this.scanQueue.add(
+      'perform-nmap-scan',
+      {
+        scanId: scan.id,
+        target: scan.target,
+        type: scan.type,
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    );
 
     return scan;
   }
@@ -83,6 +95,27 @@ export class ScansService {
   async findOne(id: string, userId: string) {
     return this.prisma.scan.findUnique({
       where: { id, userId },
+    });
+  }
+
+  async delete(id: string, userId: string) {
+    const scan = await this.prisma.scan.findFirst({
+      where: { id, userId },
+    });
+    if (!scan) {
+      throw new NotFoundException('Varredura não encontrada.');
+    }
+    return this.prisma.scan.delete({
+      where: { id },
+    });
+  }
+
+  async deleteMany(ids: string[], userId: string) {
+    return this.prisma.scan.deleteMany({
+      where: {
+        id: { in: ids },
+        userId,
+      },
     });
   }
 }

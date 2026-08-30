@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/table";
 import { Activity, Globe, ServerCrash, ShieldAlert } from "lucide-react";
 import { AiRemediation } from "@/components/AiRemediation";
-import { Scan } from "@/lib/types";
+import { Scan, NmapPort, NiktoVulnerability } from "@/lib/types";
 import { parseNiktoResult, parseNmapResult } from "@/lib/parsers";
 import { getStatusColor } from "@/lib/utils";
 
@@ -62,7 +62,7 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan, trigger 
                   <DialogTitle className="text-2xl font-bold">
                     Relatório de Vulnerabilidades
                   </DialogTitle>
-                  <Badge variant={getStatusColor(scan.status) as any} className="text-sm px-3 py-1">
+                  <Badge variant={getStatusColor(scan.status)} className="text-sm px-3 py-1">
                     {scan.status}
                   </Badge>
                 </div>
@@ -172,7 +172,7 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan, trigger 
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {nmapData.openPorts.map((p: any, i: number) => (
+                                {nmapData.openPorts.map((p: NmapPort, i: number) => (
                                   <TableRow key={i} className="hover:bg-white/5 border-b border-white/5">
                                     <TableCell className="font-mono font-bold text-blue-400">
                                       {p.port}/{p.protocol}
@@ -233,7 +233,7 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan, trigger 
                     </h3>
 
                     <div className="space-y-3">
-                      {niktoData.vulnerabilities.map((v: any, i: number) => (
+                      {niktoData.vulnerabilities.map((v: NiktoVulnerability, i: number) => (
                         <div key={i} className="p-4 rounded-lg border border-white/10 hover:border-primary/50 transition-colors bg-[#1a1a21]/50 shadow-sm">
                           <div className="flex items-center gap-2 mb-2">
                             <Badge

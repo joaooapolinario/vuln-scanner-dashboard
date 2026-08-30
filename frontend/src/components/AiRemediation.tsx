@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Bot, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown from "react-markdown";
+import { API_BASE_URL } from "@/lib/api";
 
 interface AiRemediationProps {
   tool: string;
@@ -16,12 +16,13 @@ export function AiRemediation({ tool, finding }: AiRemediationProps) {
 
   const fetchRemediation = async () => {
     if (remediation) return;
-    
+
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:3000/ai/remediation", {
+      const token =
+        localStorage.getItem("scanner_token") || localStorage.getItem("token");
+      const res = await fetch(`${API_BASE_URL}/ai/remediation`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -31,13 +32,20 @@ export function AiRemediation({ tool, finding }: AiRemediationProps) {
       });
 
       if (!res.ok) {
-        throw new Error("Falha ao buscar recomendação da IA");
+        const errorData = await res.json().catch(() => null);
+        throw new Error(
+          errorData?.message || "Falha ao buscar recomendação da IA",
+        );
       }
 
       const data = await res.json();
       setRemediation(data.remediation);
-    } catch (err: any) {
-      setError(err.message || "Erro desconhecido ao chamar IA");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Erro desconhecido ao chamar IA");
+      }
     } finally {
       setLoading(false);
     }
@@ -60,7 +68,11 @@ export function AiRemediation({ tool, finding }: AiRemediationProps) {
           <Bot className="h-4 w-4" />
           <span>Análise de IA (Gemini)</span>
         </div>
-        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        {isOpen ? (
+          <ChevronUp className="h-4 w-4" />
+        ) : (
+          <ChevronDown className="h-4 w-4" />
+        )}
       </button>
 
       {isOpen && (
@@ -73,9 +85,7 @@ export function AiRemediation({ tool, finding }: AiRemediationProps) {
           )}
 
           {error && (
-            <div className="text-red-400 font-medium">
-              Erro: {error}
-            </div>
+            <div className="text-red-400 font-medium">Erro: {error}</div>
           )}
 
           {remediation && (
@@ -86,7 +96,7 @@ export function AiRemediation({ tool, finding }: AiRemediationProps) {
                 </h4>
                 <p className="font-mono text-sm text-foreground">{finding}</p>
               </div>
-              
+
               <ReactMarkdown>{remediation}</ReactMarkdown>
             </div>
           )}

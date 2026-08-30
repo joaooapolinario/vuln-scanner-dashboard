@@ -1,16 +1,17 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { parseStringPromise } from 'xml2js';
 import { ScansGateway } from './scans.gateway';
 import * as fs from 'fs';
 import * as path from 'path';
 
 @Processor('scans')
-export class ScansProcessor extends WorkerHost {
+export class ScansProcessor extends WorkerHost implements OnModuleDestroy {
   private readonly logger = new Logger(ScansProcessor.name);
+  private readonly activeProcesses = new Map<string, ChildProcess>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -21,8 +22,12 @@ export class ScansProcessor extends WorkerHost {
 
   async process(job: Job<{ scanId: string; target: string; type: string }>) {
     const { scanId, target, type } = job.data;
-    this.logger.log(`[Job ${job.id}] Iniciando scan ${type} contra: ${target}`);
+    const currentAttempt = job.attemptsMade + 1;
+    const maxAttempts = job.opts.attempts || 1;
 
+    this.logger.log(
+      `[Job ${job.id} - Tentativa ${currentAttempt}/${maxAttempts}] Iniciando scan ${type} contra: ${target}`,
+    );
 
     await this.prisma.scan.update({
       where: { id: scanId },
@@ -38,18 +43,19 @@ export class ScansProcessor extends WorkerHost {
       if (type === 'WEB') {
         result = await this.runNikto(target, scanId);
       } else {
-        result = await this.runNmap(target);
-        
+        result = await this.runNmap(target, scanId);
+
         const openPorts: string[] = [];
         try {
           const ports = result?.nmaprun?.host?.[0]?.ports?.[0]?.port || [];
           ports.forEach((p: any) => {
-            const portId = p.$.portid + '/' + p.$.protocol;
+            const portId = `${p.$.portid}/${p.$.protocol}`;
             if (p.state?.[0]?.$.state === 'open') {
-               openPorts.push(portId);
+              openPorts.push(portId);
             }
           });
-        } catch (e) {
+        } catch {
+          // Summary fallback silencioso
         }
         summary = { openPorts };
       }
@@ -63,13 +69,33 @@ export class ScansProcessor extends WorkerHost {
           finishedAt: new Date(),
         },
       });
-      this.logger.log(`[Job ${job.id}] Scan finalizado.`);
-      this.scansGateway.emitScanUpdate(scanId, 'COMPLETED');
 
+      this.logger.log(`[Job ${job.id}] Scan finalizado com sucesso.`);
+      this.scansGateway.emitScanUpdate(scanId, 'COMPLETED');
     } catch (error) {
-      this.logger.error(`[Job ${job.id}] Erro: ${error.message}`);
-      await this.failScan(scanId, error.message);
-      this.scansGateway.emitScanUpdate(scanId, 'FAILED');
+      const hasMoreAttempts = currentAttempt < maxAttempts;
+
+      this.logger.error(
+        `[Job ${job.id}] Erro na tentativa ${currentAttempt}/${maxAttempts}: ${error.message}`,
+      );
+
+      if (hasMoreAttempts) {
+        await this.prisma.scan.update({
+          where: { id: scanId },
+          data: {
+            logs: `[Tentativa ${currentAttempt}/${maxAttempts}] Falha temporária: ${error.message}. Reprocessando...`,
+          },
+        });
+      } else {
+        await this.failScan(
+          scanId,
+          `[Falha após ${currentAttempt} tentativas]: ${error.message}`,
+        );
+        this.scansGateway.emitScanUpdate(scanId, 'FAILED');
+      }
+
+      // Propaga o erro para o BullMQ gerenciar o retry e backoff
+      throw error;
     }
   }
 
@@ -81,17 +107,33 @@ export class ScansProcessor extends WorkerHost {
   }
 
   // --- ENGINE NMAP ---
-  private runNmap(target: string): Promise<any> {
+  private runNmap(target: string, scanId: string): Promise<any> {
     return new Promise((resolve, reject) => {
       const nmap = spawn('nmap', ['-sV', '-T4', '-oX', '-', '--no-stylesheet', target]);
+      this.activeProcesses.set(scanId, nmap);
+
       let stdout = '';
       let stderr = '';
-      nmap.stdout.on('data', (d) => stdout += d.toString());
-      nmap.stderr.on('data', (d) => stderr += d.toString());
+
+      nmap.stdout.on('data', (d) => (stdout += d.toString()));
+      nmap.stderr.on('data', (d) => (stderr += d.toString()));
+
+      nmap.on('error', (err) => {
+        this.activeProcesses.delete(scanId);
+        reject(new Error(`Falha ao executar Nmap: ${err.message}`));
+      });
+
       nmap.on('close', async (code) => {
-        if (code !== 0) return reject(new Error(`Nmap error: ${stderr}`));
-        try { resolve(await parseStringPromise(stdout)); } 
-        catch (e) { reject(new Error(`XML Parse error: ${e.message}`)); }
+        this.activeProcesses.delete(scanId);
+        if (code !== 0) {
+          return reject(new Error(`Nmap finalizou com erro (code ${code}): ${stderr}`));
+        }
+        try {
+          const parsed = await parseStringPromise(stdout);
+          resolve(parsed);
+        } catch (e) {
+          reject(new Error(`Erro ao parsear XML do Nmap: ${e.message}`));
+        }
       });
     });
   }
@@ -100,55 +142,64 @@ export class ScansProcessor extends WorkerHost {
   private runNikto(target: string, scanId: string): Promise<any> {
     return new Promise((resolve, reject) => {
       const tempFile = path.join('/tmp', `nikto_${scanId}.xml`);
-      
-      // -Tuning 123b: Modo "Rápido" (apenas testes comuns)
-      // -maxtime 180s: Limita o scan a 3 minutos (para não travar o servidor)
-      // se for fazer varredura completa, remover o maxtime e o tuning
-      const nikto = spawn('nikto', ['-h', target, '-o', tempFile, '-Format', 'xml', '-maxtime', '180s', '-Tuning', '123b']);
+      const nikto = spawn('nikto', [
+        '-h',
+        target,
+        '-o',
+        tempFile,
+        '-Format',
+        'xml',
+        '-maxtime',
+        '180s',
+        '-Tuning',
+        '123b',
+      ]);
+
+      this.activeProcesses.set(scanId, nikto);
 
       let stderrLog = '';
-      nikto.stderr.on('data', (d) => stderrLog += d.toString());
+      nikto.stderr.on('data', (d) => (stderrLog += d.toString()));
 
       nikto.on('error', (err) => {
-        this.logger.error(`Falha CRÍTICA ao iniciar Nikto: ${err.message}`);
-        reject(new Error(`O comando 'nikto' não foi encontrado.`));
+        this.activeProcesses.delete(scanId);
+        this.logger.error(`Falha ao iniciar Nikto: ${err.message}`);
+        reject(new Error(`O comando 'nikto' não foi encontrado ou falhou.`));
       });
 
       nikto.on('close', async (code) => {
+        this.activeProcesses.delete(scanId);
+
         if (!fs.existsSync(tempFile)) {
-           return reject(new Error(`Nikto falhou. Erro: ${stderrLog}`));
+          return reject(new Error(`Nikto falhou (code ${code}). Erro: ${stderrLog}`));
         }
 
         try {
           const fileContent = await fs.promises.readFile(tempFile, 'utf8');
           const xmlRaw = await parseStringPromise(fileContent);
-          
+
           const scanDetails = xmlRaw?.niktoscan?.scandetails?.[0];
-          
           if (!scanDetails) {
-             throw new Error("Formato XML do Nikto inválido ou vazio.");
+            throw new Error('Formato XML do Nikto inválido ou vazio.');
           }
 
           const rawItems = scanDetails.item || [];
-
           const vulnerabilities = rawItems.map((item: any) => ({
-            id: item?.$?.id || "0",
-            method: item?.$?.method || "UNKNOWN",
-            osvdb: item?.$?.osvdbid || "0",
-            msg: item?.description?.[0] || "Sem descrição",
-            url: item?.uri?.[0] || "/"
+            id: item?.$?.id || '0',
+            method: item?.$?.method || 'UNKNOWN',
+            osvdb: item?.$?.osvdbid || '0',
+            msg: item?.description?.[0] || 'Sem descrição',
+            url: item?.uri?.[0] || '/',
           }));
 
           const cleanResult = {
             host: scanDetails?.$?.targethostname || target,
             ip: scanDetails?.$?.targetip,
-            port: scanDetails?.$?.sitename, 
-            banner: scanDetails?.$?.banner || "Banner não detectado",
-            vulnerabilities: vulnerabilities
+            port: scanDetails?.$?.sitename,
+            banner: scanDetails?.$?.banner || 'Banner não detectado',
+            vulnerabilities,
           };
 
           resolve(cleanResult);
-
         } catch (e) {
           reject(new Error(`Erro ao processar XML do Nikto: ${e.message}`));
         } finally {
@@ -163,5 +214,24 @@ export class ScansProcessor extends WorkerHost {
       });
     });
   }
-  
+
+  // --- PREVENÇÃO DE PROCESSOS ZUMBIS (ENCERRAMENTO LIMPO) ---
+  onModuleDestroy() {
+    if (this.activeProcesses.size > 0) {
+      this.logger.warn(
+        `Finalizando ${this.activeProcesses.size} processos filhos ativos devido ao shutdown...`,
+      );
+      for (const [scanId, proc] of this.activeProcesses.entries()) {
+        try {
+          if (proc && !proc.killed) {
+            proc.kill('SIGTERM');
+            this.logger.log(`Processo filho para scanId ${scanId} (PID: ${proc.pid}) finalizado.`);
+          }
+        } catch (err) {
+          this.logger.error(`Erro ao finalizar processo PID ${proc.pid}: ${err.message}`);
+        }
+      }
+      this.activeProcesses.clear();
+    }
+  }
 }

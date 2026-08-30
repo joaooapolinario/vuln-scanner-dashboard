@@ -4,8 +4,15 @@ import { useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Lock } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Shield } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -20,61 +27,76 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:3000/auth/login", {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
       if (!res.ok) {
-        throw new Error("Credenciais inválidas");
+        const errorBody = await res.json().catch(() => null);
+        throw new Error(errorBody?.message || "Credenciais inválidas");
       }
 
       const data = await res.json();
-      // O backend retorna { access_token: "...", user: {...} }
-      login(data.access_token);
-      
-    } catch (err: any) {
-      setError(err.message);
+      login(data.access_token, data.user);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Erro desconhecido ao autenticar");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
-      <Card className="w-[350px]">
+    <div className="min-h-screen flex items-center justify-center bg-[#15151a] p-4">
+      <Card className="w-full max-w-sm bg-[#1c1c22] border-white/10 text-white shadow-2xl">
         <CardHeader className="text-center">
-          <div className="mx-auto bg-blue-100 p-3 rounded-full w-fit mb-2">
-            <Lock className="w-6 h-6 text-blue-600" />
+          <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-2 border border-primary/20 shadow-[0_0_15px_rgba(217,70,239,0.2)]">
+            <Shield className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle>Acesso Restrito</CardTitle>
-          <CardDescription>Entre para gerenciar scans</CardDescription>
+          <CardTitle className="text-xl font-bold">VulnScanner</CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Acesse seu dashboard de segurança
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Input 
-                type="email" 
-                placeholder="admin@scanner.com" 
+              <Input
+                type="email"
+                placeholder="admin@scanner.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="bg-[#15151a] border-white/10 text-white focus-visible:ring-primary"
               />
             </div>
             <div className="space-y-2">
-              <Input 
-                type="password" 
-                placeholder="Senha" 
+              <Input
+                type="password"
+                placeholder="Senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className="bg-[#15151a] border-white/10 text-white focus-visible:ring-primary"
               />
             </div>
-            
-            {error && <p className="text-sm text-red-500 text-center">{error}</p>}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            {error && (
+              <p className="text-xs text-red-400 text-center font-medium">
+                {error}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full bg-primary text-white hover:bg-primary/90 shadow-[0_0_15px_rgba(217,70,239,0.25)]"
+              disabled={loading}
+            >
               {loading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
