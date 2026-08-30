@@ -1,7 +1,7 @@
 "use client";
 
 import { io } from "socket.io-client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import useSWR from "swr";
 import { useAuth } from "@/context/auth-context";
 import { useRouter } from "next/navigation";
@@ -10,9 +10,11 @@ import { Plus } from "lucide-react";
 
 import { Scan, DashboardStats } from "@/lib/types";
 import { API_BASE_URL, fetchWithAuth, ApiError } from "@/lib/api";
+import { extractAllFindings } from "@/lib/findings";
 import { DashboardStatsCards } from "@/components/dashboard/DashboardStatsCards";
 import { NewScanForm } from "@/components/dashboard/NewScanForm";
 import { RecentScansHistory } from "@/components/dashboard/RecentScansHistory";
+import { FindingsView } from "@/components/dashboard/FindingsView";
 import { TopNav } from "@/components/dashboard/TopNav";
 import {
   Dialog,
@@ -25,6 +27,9 @@ export default function Home() {
   const { token, logout, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
+  const [activeTab, setActiveTab] = useState<"dashboard" | "findings">(
+    "dashboard",
+  );
   const [target, setTarget] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
@@ -56,6 +61,11 @@ export default function Home() {
       if (err?.status === 401) logout();
     },
   });
+
+  const findingsCount = useMemo(
+    () => extractAllFindings(scans).length,
+    [scans],
+  );
 
   const handleRefresh = useCallback(() => {
     mutateScans();
@@ -125,40 +135,52 @@ export default function Home() {
 
   return (
     <div className="min-h-screen font-sans bg-[#15151a] text-foreground">
-      <div className="max-w-7xl mx-auto space-y-2 p-2 sm:p-6">
-        <TopNav />
+      <div className="max-w-7xl mx-auto space-y-4 p-2 sm:p-6">
+        <TopNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          findingsCount={findingsCount}
+        />
 
-        <div className="flex justify-end mb-4 px-2">
-          <Dialog open={isScanModalOpen} onOpenChange={setIsScanModalOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary text-white hover:bg-primary/90 shadow-[0_0_15px_rgba(217,70,239,0.3)]">
-                <Plus className="h-4 w-4 mr-2" /> New Scan
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-[#1a1a21] border border-white/10 text-white sm:max-w-md">
-              <DialogTitle className="sr-only">New Scan Form</DialogTitle>
-              <NewScanForm
-                target={target}
-                setTarget={setTarget}
-                scanType={scanType}
-                setScanType={setScanType}
-                handleScan={handleScan}
-                loading={loading}
+        {activeTab === "dashboard" ? (
+          <>
+            <div className="flex justify-end mb-2 px-2">
+              <Dialog open={isScanModalOpen} onOpenChange={setIsScanModalOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-primary text-white hover:bg-primary/90 shadow-[0_0_15px_rgba(217,70,239,0.3)]">
+                    <Plus className="h-4 w-4 mr-2" /> New Scan
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-[#1a1a21] border border-white/10 text-white sm:max-w-md">
+                  <DialogTitle className="sr-only">New Scan Form</DialogTitle>
+                  <NewScanForm
+                    target={target}
+                    setTarget={setTarget}
+                    scanType={scanType}
+                    setScanType={setScanType}
+                    handleScan={handleScan}
+                    loading={loading}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            <DashboardStatsCards stats={stats} scans={scans} />
+
+            <div className="grid grid-cols-12 gap-6">
+              <RecentScansHistory
+                scans={scans}
+                selectedScan={selectedScan}
+                setSelectedScan={setSelectedScan}
+                onRefresh={handleRefresh}
               />
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <DashboardStatsCards stats={stats} scans={scans} />
-
-        <div className="grid grid-cols-12 gap-6">
-          <RecentScansHistory
-            scans={scans}
-            selectedScan={selectedScan}
-            setSelectedScan={setSelectedScan}
-            onRefresh={handleRefresh}
-          />
-        </div>
+            </div>
+          </>
+        ) : (
+          <div className="px-2">
+            <FindingsView scans={scans} />
+          </div>
+        )}
       </div>
     </div>
   );

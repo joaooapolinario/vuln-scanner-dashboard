@@ -24,11 +24,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Activity, Globe, ServerCrash, ShieldAlert } from "lucide-react";
+import { Activity, Globe, ServerCrash, ShieldAlert, Download } from "lucide-react";
 import { AiRemediation } from "@/components/AiRemediation";
 import { Scan, NmapPort, NiktoVulnerability } from "@/lib/types";
 import { parseNiktoResult, parseNmapResult } from "@/lib/parsers";
 import { getStatusColor } from "@/lib/utils";
+import { exportToJson } from "@/lib/findings";
 
 interface ScanReportDialogProps {
   scan: Scan;
@@ -66,6 +67,16 @@ export function ScanReportDialog({ scan, selectedScan, setSelectedScan, trigger 
                     {scan.status}
                   </Badge>
                 </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => exportToJson(`scan-report-${scan.target}-${scan.id.slice(0, 6)}`, scan)}
+                  className="bg-white/5 border-white/10 hover:bg-white/10 text-xs gap-1.5"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Exportar JSON</span>
+                </Button>
               </div>
 
               <DialogDescription className="text-base flex items-center gap-2 text-muted-foreground">

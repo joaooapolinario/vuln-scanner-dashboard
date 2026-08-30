@@ -7,11 +7,21 @@ import {
   LogOut,
   User,
   ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { Badge } from "@/components/ui/badge";
 
-export function TopNav() {
+interface TopNavProps {
+  activeTab?: "dashboard" | "findings";
+  onTabChange?: (tab: "dashboard" | "findings") => void;
+  findingsCount?: number;
+}
+
+export function TopNav({
+  activeTab = "dashboard",
+  onTabChange,
+  findingsCount = 0,
+}: TopNavProps) {
   const { user, logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -59,11 +69,35 @@ export function TopNav() {
       </div>
 
       {/* Center Nav Pill */}
-      <div className="hidden md:flex items-center gap-2 bg-[#1a1a21]/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/5 shadow-inner">
-        <div className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-primary bg-primary/10 transition-colors rounded-full border border-primary/20 shadow-[0_0_15px_rgba(217,70,239,0.15)]">
+      <div className="flex items-center gap-1.5 bg-[#1a1a21]/60 backdrop-blur-md p-1.5 rounded-full border border-white/5 shadow-inner">
+        <button
+          onClick={() => onTabChange?.("dashboard")}
+          className={`flex items-center gap-2 px-4 py-1.5 text-xs sm:text-sm font-medium transition-all rounded-full ${
+            activeTab === "dashboard"
+              ? "text-primary bg-primary/10 border border-primary/20 shadow-[0_0_15px_rgba(217,70,239,0.15)]"
+              : "text-muted-foreground hover:text-foreground hover:bg-white/5 border border-transparent"
+          }`}
+        >
           <LayoutDashboard className="h-4 w-4" />
-          <span>Dashboard & Attack Surface</span>
-        </div>
+          <span>Dashboard</span>
+        </button>
+
+        <button
+          onClick={() => onTabChange?.("findings")}
+          className={`flex items-center gap-2 px-4 py-1.5 text-xs sm:text-sm font-medium transition-all rounded-full ${
+            activeTab === "findings"
+              ? "text-primary bg-primary/10 border border-primary/20 shadow-[0_0_15px_rgba(217,70,239,0.15)]"
+              : "text-muted-foreground hover:text-foreground hover:bg-white/5 border border-transparent"
+          }`}
+        >
+          <ShieldAlert className="h-4 w-4" />
+          <span>Vulnerabilidades</span>
+          {findingsCount > 0 && (
+            <span className="ml-1 text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-primary/20 text-primary border border-primary/30">
+              {findingsCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Right Actions / User Profile */}

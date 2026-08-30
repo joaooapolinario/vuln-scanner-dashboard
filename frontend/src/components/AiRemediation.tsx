@@ -39,7 +39,7 @@ export function AiRemediation({ tool, finding }: AiRemediationProps) {
       }
 
       const data = await res.json();
-      setRemediation(data.remediation);
+      setRemediation(data.data || data.remediation || null);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
